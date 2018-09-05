@@ -5,7 +5,7 @@ Project 1 Flocking
 
 Hannah Bollar: [LinkedIn](https://www.linkedin.com/in/hannah-bollar/), [Website](http://hannahbollar.com/)
 
-Tested on: Windows 10 Pro, i7-6700HQ @ 2.60GHz 15.9GB, GTX 980M (Personal)
+Tested on: Windows 10 Pro, i7-6700HQ @ 2.60GHz 15.9GB, GTX 980M (Personal), CUDA 8.0, Visual Studio 2015.
 ____________________________________________________________________________________
 ### Assignment Information
 

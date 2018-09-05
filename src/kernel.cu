@@ -233,18 +233,43 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
   // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
   // Rule 2: boids try to stay a distance d away from each other
   // Rule 3: boids try to match the speed of surrounding boids
-  return glm::vec3(0.0f, 0.0f, 0.0f);
+  return glm::vec3(1.f, 1.f, 1.f);
+
+  //-------------------------------------------------------------------------
+  // Rule 1
+
+
+  //-------------------------------------------------------------------------
+  // Rule 2
+
+  //-------------------------------------------------------------------------
+  // Rule 3
+
+  //-------------------------------------------------------------------------
 }
 
 /**
 * TODO-1.2 implement basic flocking
-* For each of the `N` bodies, update its position based on its current velocity.
+* For each of the `N` bodies, update its velocity based on its current position.
 */
 __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   glm::vec3 *vel1, glm::vec3 *vel2) {
   // Compute a new velocity based on pos and vel1
   // Clamp the speed
   // Record the new velocity into vel2. Question: why NOT vel1?
+  int index = threadIdx.x + (blockIdx.x * blockDim.x);
+  if (index >= N) {
+    return;
+  }
+  
+  glm::vec3 thisVelo = vel1[index] + computeVelocityChange(N, index, pos, vel1);
+
+  // clamp speed
+  thisVelo.x = glm::clamp(thisVelo.x, -maxSpeed, maxSpeed);
+  thisVelo.y = glm::clamp(thisVelo.y, -maxSpeed, maxSpeed);
+  thisVelo.z = glm::clamp(thisVelo.z, -maxSpeed, maxSpeed);
+  
+  vel2[index] = thisVelo;
 }
 
 /**
@@ -349,6 +374,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 void Boids::stepSimulationNaive(float dt) {
   // TODO-1.2 - use the kernels you wrote to step the simulation forward in time.
   // TODO-1.2 ping-pong the velocity buffers
+
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
