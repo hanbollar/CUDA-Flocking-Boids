@@ -233,19 +233,49 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
   // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
   // Rule 2: boids try to stay a distance d away from each other
   // Rule 3: boids try to match the speed of surrounding boids
-  return glm::vec3(1.f, 1.f, 1.f);
 
-  //-------------------------------------------------------------------------
-  // Rule 1
-
-
-  //-------------------------------------------------------------------------
-  // Rule 2
-
-  //-------------------------------------------------------------------------
-  // Rule 3
-
-  //-------------------------------------------------------------------------
+  bool rule1 = true;
+  bool rule2 = false;
+  bool rule3 = false;
+  // Rule 1: Boids try to fly towards the centre of mass of neighbouring boids
+  if (rule1) {
+    glm::vec3 perceived_center(0.f);
+    glm::vec3 iSelf_position = pos[iSelf];
+    for (int on_index = 0; on_index < N; ++on_index) {
+      if (on_index == iSelf) { continue; }
+      if (glm::distance(iSelf_position, pos[on_index]) < rule1Distance) {
+        perceived_center += pos[on_index];
+      }
+    }
+    perceived_center /= (N - 1);
+    return (perceived_center - iSelf_position) * rule1Scale;
+  }
+  // Rule 2: Boids try to keep a small distance away from other objects (including other boids).
+  else if (rule2) {
+    glm::vec3 perceived_center(0.f);
+    glm::vec3 iSelf_position = pos[iSelf];
+    for (int on_index = 0; on_index < N; ++on_index) {
+      if (on_index == iSelf) { continue; }
+      if (glm::distance(iSelf_position, pos[on_index]) < rule2Distance) {
+        perceived_center -= pos[on_index] - iSelf_position;
+      }
+    }
+    return perceived_center * rule2Scale;
+  }
+  // Rule 3: Boids try to match velocity with near boids.
+  else if (rule3) {
+    glm::vec3 perceived_velocity(0.f);
+    glm::vec3 iSelf_position = pos[iSelf];
+    for (int on_index = 0; on_index < N; ++on_index) {
+      if (on_index == iSelf) { continue; }
+      if (glm::distance(iSelf_position, pos[on_index]) < rule3Distance) {
+        perceived_velocity += vel[on_index];
+      }
+    }
+    perceived_velocity /= N - 1;
+    return perceived_velocity * rule3Scale;
+  }
+  return glm::vec3(0.f);
 }
 
 /**
@@ -373,8 +403,11 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 */
 void Boids::stepSimulationNaive(float dt) {
   // TODO-1.2 - use the kernels you wrote to step the simulation forward in time.
+  dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+  kernUpdatePos<<<fullBlocksPerGrid, threadsPerBlock>>>(numObjects, dt, dev_pos, dev_vel1);
+  //kernUpdateVelocityBruteForce<<<fullBlocksPerGrid, blockSize >>>(numObjects, dev_pos, dev_vel1, dev_vel2);
+    
   // TODO-1.2 ping-pong the velocity buffers
-
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
