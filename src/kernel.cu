@@ -231,34 +231,41 @@ void Boids::copyBoidsToVBO(float *vbodptr_positions, float *vbodptr_velocities) 
 */
 __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *pos, const glm::vec3 *vel) {
   glm::vec3 perceived_center_rule1(0.f);
-  glm::vec3 perceived_center_rule2(0.f);
-  glm::vec3 perceived_velocity_rule3(0.f);
   glm::vec3 iSelf_position = pos[iSelf];
+
+  glm::vec3 adhesion_velocity_rule1(0.f);
+  glm::vec3 dodging_velocity_rule2(0.f);
+  glm::vec3 cohesion_velocity_rule3(0.f);
+
+  float neighbors_rule1 = 0.f;
+  float neighbors_rule3 = 0.f;
 
   for (int on_index = 0; on_index < N; ++on_index) {
     if (on_index == iSelf) { continue; }
-    float distance = glm::distance(iSelf_position, pos[on_index]);
+    glm::vec3 on_pos = pos[on_index];
+    float distance = glm::distance(iSelf_position, on_pos);
     // Rule 1: Boids try to fly towards the center of mass of neighboring boids
     if (distance < rule1Distance) {
-      perceived_center_rule1 += pos[on_index];
+      perceived_center_rule1 += on_pos;
+      ++neighbors_rule1;
     }
     // Rule 2: Boids try to keep a small distance away from other objects (including other boids).
     if (distance < rule2Distance) {
-      perceived_center_rule2 -= pos[on_index] - iSelf_position;
+      dodging_velocity_rule2 -= (on_pos - iSelf_position);
     }
     // Rule 3: Boids try to match velocity with near boids.
     if (distance < rule3Distance) {
-      perceived_velocity_rule3 += vel[on_index];
+      cohesion_velocity_rule3 += vel[on_index];
+      ++neighbors_rule3;
     }
   }
 
   // final updates before summing
-  perceived_center_rule1 *= rule1Scale / (N - 1);
-  perceived_center_rule1 -= iSelf_position;
-  perceived_center_rule2 *= rule2Scale;
-  perceived_velocity_rule3 *= rule3Scale / (N - 1);
+  adhesion_velocity_rule1 = (neighbors_rule1 > 0) ? (perceived_center_rule1 / neighbors_rule1 - iSelf_position) * rule1Scale : glm::vec3(0.f);
+  dodging_velocity_rule2 *= rule2Scale;
+  cohesion_velocity_rule3 = (neighbors_rule3 > 0) ? cohesion_velocity_rule3 / neighbors_rule3 * rule3Scale : glm::vec3(0.f);
 
-  return perceived_center_rule1 + perceived_center_rule2 + perceived_velocity_rule3;
+  return adhesion_velocity_rule1 + dodging_velocity_rule2 + cohesion_velocity_rule3;
 }
 
 /**
@@ -276,7 +283,7 @@ __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   }
   glm::vec3 thisVelo = vel1[index] + computeVelocityChange(N, index, pos, vel1);
   // clamp speed and reupdate
-  vel2[index] = glm::length(thisVelo) > maxSpeed ? glm::normalize(thisVelo) * maxSpeed : thisVelo;;
+  vel2[index] = glm::length(thisVelo) > maxSpeed ? glm::normalize(thisVelo) * maxSpeed : thisVelo;
 }
 
 /**
@@ -382,12 +389,12 @@ void Boids::stepSimulationNaive(float dt) {
   dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
   // Use the kernels to step the simulation forward in time.
   kernUpdateVelocityBruteForce<<<fullBlocksPerGrid, blockSize>>>(numObjects, dev_pos, dev_vel1, dev_vel2);
-  checkCUDAErrorWithLine("kernUpdateVelocityBruteForce failed!");
   kernUpdatePos<<<fullBlocksPerGrid, threadsPerBlock>>>(numObjects, dt, dev_pos, dev_vel1);
-  checkCUDAErrorWithLine("kernUpdatePos failed!");
+  checkCUDAErrorWithLine("kernUpdate vel and pos failed!");
 
   // Ping-pong/swap the velocity buffers, so now have calculated updated velocity as current
   std::swap(dev_vel1, dev_vel2);
+  //cudaMemcpy(dev_vel1, dev_vel2, sizeof(glm::vec3) * numObjects, cudaMemcpyDeviceToDevice);
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
