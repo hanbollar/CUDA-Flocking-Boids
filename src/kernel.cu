@@ -168,7 +168,24 @@ void Boids::initSimulation(int N) {
   gridMinimum.y -= halfGridWidth;
   gridMinimum.z -= halfGridWidth;
 
-  // TODO-2.1 TODO-2.3 - Allocate additional buffers here.
+  // TODO-2.1 Allocate additional buffers here.
+  cudaMalloc((void**)&dev_particleArrayIndices, N * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_particleArrayIndices failed!");
+
+  cudaMalloc((void**)&dev_particleGridIndices, N * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_particleGridIndices failed!");
+
+  dev_thrust_particleArrayIndices = thrust::device_pointer_cast<int>(dev_particleArrayIndices);
+  dev_thrust_particleGridIndices = thrust::device_pointer_cast<int>(dev_particleGridIndices);
+
+  cudaMalloc((void**)&dev_gridCellStartIndices, gridCellCount * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_gridCellStartIndices failed!");
+
+  cudaMalloc((void**)&dev_gridCellEndIndices, gridCellCount * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_gridCellEndIndices failed!");
+
+  // TODO-2.3 Allocate additional buffers here.
+
   cudaDeviceSynchronize();
 }
 
@@ -224,7 +241,7 @@ void Boids::copyBoidsToVBO(float *vbodptr_positions, float *vbodptr_velocities) 
 ******************/
 
 /**
-* 1.2 You can use this as a helper for kernUpdateVelocityBruteForce.
+* TODO-1.2 You can use this as a helper for kernUpdateVelocityBruteForce.
 * __device__ code can be called from a __global__ context
 * Compute the new velocity on the body with index `iSelf` due to the `N` boids
 * in the `pos` and `vel` arrays.
@@ -324,10 +341,21 @@ __device__ int gridIndex3Dto1D(int x, int y, int z, int gridResolution) {
 __global__ void kernComputeIndices(int N, int gridResolution,
   glm::vec3 gridMin, float inverseCellWidth,
   glm::vec3 *pos, int *indices, int *gridIndices) {
-    // TODO-2.1
-    // - Label each boid with the index of its grid cell.
-    // - Set up a parallel array of integer indices as pointers to the actual
-    //   boid data in pos and vel1/vel2
+  int index = threadIdx.x + (blockIdx.x * blockDim.x);
+  if (index >= N) {
+    return;
+  }
+
+  // TODO-2.1
+  // - Label each boid with the index of its grid cell. HB zero out origin of grid
+  glm::vec3 cell_location_3D = (pos[index] - gridMin) * inverseCellWidth;
+  gridIndices[index] = gridIndex3Dto1D(cell_location_3D.x, cell_location_3D.y, cell_location_3D.z, gridResolution);
+
+  // Set up a parallel array of integer indices as pointers to the actual
+  // boid data in pos and vel1/vel2 - HB fill in the array dev_particleArrayIndices
+  // for what each indices[index] points to which gridIndices[index] value
+  // since initializing - in same order.
+  indices[index] = index;
 }
 
 // LOOK-2.1 Consider how this could be useful for indicating that a cell
@@ -345,6 +373,30 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
   // Identify the start point of each cell in the gridIndices array.
   // This is basically a parallel unrolling of a loop that goes
   // "this index doesn't match the one before it, must be a new cell!"
+  // HB - indexing is only first inclusive [start, end).
+
+  int particle_index = threadIdx.x + (blockIdx.x * blockDim.x);
+  if (particle_index >= N) {
+    return;
+  }
+
+  int current_grid_index = particleGridIndices[particle_index];
+
+  // starting edge case
+  if (current_grid_index == 0) {
+    gridCellStartIndices[current_grid_index] = 0;
+    return;
+  }
+  // general case
+  int previous_grid_index = particleGridIndices[particle_index - 1];
+  if (current_grid_index != previous_grid_index) {
+    gridCellStartIndices[current_grid_index] = particle_index;
+    gridCellEndIndices[previous_grid_index] = particle_index;
+  }
+  // ending edge case
+  if (particle_index == N - 1) {
+    gridCellEndIndices[current_grid_index] = particle_index + 1;
+  }
 }
 
 __global__ void kernUpdateVelNeighborSearchScattered(
@@ -356,7 +408,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   // TODO-2.1 - Update a boid's velocity using the uniform grid to reduce
   // the number of boids that need to be checked.
   // - Identify the grid cell that this particle is in
-  // - Identify which cells may contain neighbors. This isn't always 8.
+  // - Identify which cells may contain neighbors. This isn't always 8!!!!
   // - For each cell, read the start/end indices in the boid pointer array.
   // - Access each boid in the cell and compute velocity change from
   //   the boids rules, if this boid is within the neighborhood distance.
@@ -435,7 +487,13 @@ void Boids::endSimulation() {
   cudaFree(dev_vel2);
   cudaFree(dev_pos);
 
-  // TODO-2.1 TODO-2.3 - Free any additional buffers here.
+  // TODO-2.1 - Free any additional buffers here.
+  cudaFree(dev_particleArrayIndices);
+  cudaFree(dev_particleGridIndices);
+  cudaFree(dev_gridCellStartIndices);
+  cudaFree(dev_gridCellEndIndices);
+  
+  // TODO-2.3 - Free any additional buffers here.
 }
 
 void Boids::unitTest() {
