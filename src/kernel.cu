@@ -397,7 +397,7 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
   int current_grid_index = particleGridIndices[particle_index];
 
   // starting edge case
-  if (current_grid_index == 0) {
+  if (particle_index == 0) {
     gridCellStartIndices[current_grid_index] = particle_index;
     return;
   }
@@ -461,7 +461,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
         int start_boid_index = gridCellStartIndices[checking_cell_index_1D];
         int end_boid_index = gridCellEndIndices[checking_cell_index_1D];
 
-        if (start_boid_index < 0 || start_boid_index >= N || end_boid_index < 0 && end_boid_index >= N) {
+        if (start_boid_index < 0 || start_boid_index >= N || end_boid_index < 0 || end_boid_index >= N) {
           continue;
         }
 
@@ -566,7 +566,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
         int start_boid_index = gridCellStartIndices[checking_cell_index_1D];
         int end_boid_index = gridCellEndIndices[checking_cell_index_1D];
 
-        if (start_boid_index < 0 || start_boid_index >= N || end_boid_index < 0 && end_boid_index >= N) {
+        if (start_boid_index < 0 || start_boid_index >= N || end_boid_index < 0 || end_boid_index >= N) {
           continue;
         }
 
