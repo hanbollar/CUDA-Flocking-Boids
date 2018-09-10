@@ -143,8 +143,6 @@ Here's a blown up version of that graph's results for each implementation with a
 
 # Questions
 
-### In Progress.
-
 <b>For each implementation, how does changing the number of boids affect performance? Why do you think this is?</b>
 
 In general, the more items that need to be checked, the slower the simulations will run.
