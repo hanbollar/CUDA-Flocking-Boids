@@ -10,6 +10,12 @@ Hannah Bollar: [LinkedIn](https://www.linkedin.com/in/hannah-bollar/), [Website]
 Tested on: Windows 10 Pro, i7-6700HQ @ 2.60GHz 15.9GB, GTX 980M (Personal), CUDA 8.0, Visual Studio 2015.
 ____________________________________________________________________________________
 
+![Developer](https://img.shields.io/badge/Developer-Hannah-0f97ff.svg?style=flat) ![CUDA 8.0](https://img.shields.io/badge/CUDA-8.0-yellow.svg) ![Built](https://img.shields.io/appveyor/ci/gruntjs/grunt.svg) ![Issues](https://img.shields.io/badge/issues-none-green.svg)
+
+[Introduction](#artificial-life) - [Rules](#rules) - [Grid System](#grid-system) - [Runtime Analysis](#runtime-analysis) - [Responses](#questions)
+
+____________________________________________________________________________________
+
 # Boids
 
 ## Artificial Life
@@ -119,6 +125,11 @@ glm::vec3 boid_position = pos[given_index];
 ```
 This change is because for the simple grid implementation, the given index of a boid in the cell does not match the same index in its position and velocity buffers since the cell's one is out of order. In the simple implementation, we use a buffer that maps this `given_index` to the appropriate index in the `positions` and `velocity` buffers. To fix this, in the `simulationStep` we actually shuffle the elements in our `position` and `velocity` buffers to match the same ordering as that of the grid cell index buffer. That way, the cell index that we're iterating over is the same index that corresponds to the position and velocity values in those buffers as well.
 
+### Additional Optimizations
+
+An additional optimization that I'd like to implement (tbd) is a radius intersection check instead of the generic bounds. Doing this check would even further optimize the coherent implementation for even more boids. The idea is that instead of doing a generic min to  max dimensions check, within the min to max dimensions also add a check for if the nearest corner of the grid cell to the boid (that the boid is not already in) is within the `max_distance`. Following our example images from scattered - we've culled an additional seven cells even for such a simple example.
+![radius check](images/myimages/radius_check.png)
+
 # Runtime Analysis
 
 The generic boid simulation comparing each implementation's runtime with an increasing number of boids in the simulations.
@@ -145,11 +156,12 @@ Here's a blown up version of that graph's results for each implementation with a
 
 <b>For each implementation, how does changing the number of boids affect performance? Why do you think this is?</b>
 
-In general, the more items that need to be checked, the slower the simulations will run.
+Overall the higher the number of boids, the slower the performance; however, the decrease in performance changes across the algorithms.
+Naive - this implementation actually is really efficient at low values and then peaks early on. This is because on those smaller values, it doesnt have any additional overhead for bounds checks and other extraneous calculations before even starting the boids check as the other two algorithms do.Scattered - this is better than the naive algorithm as the number of boids increases since it culls out the extraneous blocks (as explained in the runtime analysis section). Coherent - this is even better than the scattered algorithm, because of memory indexing optimization discussed earlier. Additionally it is almost unnoticeably affected by an increase in boid count until you start getting up to 500K boids.
 
 <b>For each implementation, how does changing the block count and block size affect performance? Why do you think this is?</b>
 
-It slows down the performance. Block size is threads per block on the gpu. The larger the block size, the fewer number of blocks are being put through the gpu. Whereas the smaller the block size, the larger the number of blocks being put through the gpu.
+The implementation uses a warp size of 32 - given the instances where the block size is not a multiple of 32, there's unused threads and the scheduling isn't optimized appropriately. Thus, the better run times were at multiples of 32, so I tracked the sizes that were these multiples on the graph to note an overall change. Otherwise, the actual block size changes were almost negligible for runtime.
 
 <b>For the coherent uniform grid: did you experience any performance improvements with the more coherent uniform grid? Was this the outcome you expected? Why or why not?</b>
 
